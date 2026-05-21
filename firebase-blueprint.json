@@ -1,0 +1,86 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and settings",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid"]
+    },
+    "BankConnection": {
+      "title": "Bank Connection",
+      "description": "Information about a linked bank account via Plaid",
+      "type": "object",
+      "properties": {
+        "itemId": { "type": "string" },
+        "accessToken": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["itemId", "accessToken"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A single financial transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "amount": { "type": "number" },
+        "category": { "type": "string" },
+        "type": { "type": "string", "enum": ["income", "expense"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "date", "description", "amount", "type"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Budget limit for a category",
+      "type": "object",
+      "properties": {
+        "limit": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["limit"]
+    },
+    "Suggestion": {
+      "title": "Suggestion",
+      "description": "A feature proposal logged by the user",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["text", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "User profile"
+    },
+    "/users/{uid}/banks/{bankId}": {
+      "schema": "BankConnection",
+      "description": "Linked banks"
+    },
+    "/users/{uid}/transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "User transactions"
+    },
+    "/users/{uid}/budgets/{categoryId}": {
+      "schema": "Budget",
+      "description": "User budget settings"
+    },
+    "/users/{uid}/suggestions/{suggestionId}": {
+      "schema": "Suggestion",
+      "description": "User suggestions"
+    }
+  }
+}

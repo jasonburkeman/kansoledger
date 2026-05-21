@@ -1,0 +1,105 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Primitives
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+    
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Validation Helpers
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid']) &&
+             data.keys().size() >= 1 && data.keys().size() <= 6 &&
+             data.uid == request.auth.uid &&
+             (data.get('email', '') is string) &&
+             (data.get('displayName', '') is string);
+    }
+
+    function isValidBankConnection(data) {
+      return data.keys().hasAll(['itemId', 'accessToken']) &&
+             data.keys().size() >= 2 && data.keys().size() <= 6 &&
+             data.itemId is string && data.itemId.size() <= 100 &&
+             data.accessToken is string && data.accessToken.size() <= 200;
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['id', 'date', 'description', 'amount', 'type']) &&
+             data.keys().size() >= 5 && data.keys().size() <= 10 &&
+             data.id is string && data.id.size() <= 100 &&
+             (data.date is timestamp || data.date is string) &&
+             data.description is string && data.description.size() <= 255 &&
+             data.amount is number &&
+             data.type in ['income', 'expense'];
+    }
+
+    function isValidBudget(data) {
+      return data.keys().hasAll(['limit']) &&
+             data.keys().size() >= 1 && data.keys().size() <= 4 &&
+             data.limit is number && data.limit >= 0;
+    }
+
+    function isValidSuggestion(data) {
+      return data.keys().hasAll(['text', 'status', 'createdAt']) &&
+             data.keys().size() >= 3 && data.keys().size() <= 5 &&
+             data.text is string && data.text.size() <= 1000 &&
+             data.status == 'Under Review';
+    }
+
+    // Collection Rules
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && isValidUser(incoming());
+      allow update: if isOwner(uid) && isValidUser(incoming()) && 
+                    incoming().uid == existing().uid;
+      allow delete: if false; // Users cannot be deleted from client
+
+      match /banks/{bankId} {
+        allow list, get: if isOwner(uid);
+        allow create: if isOwner(uid) && isValidBankConnection(incoming());
+        allow update: if isOwner(uid) && isValidBankConnection(incoming());
+        allow delete: if isOwner(uid);
+      }
+
+      match /transactions/{transactionId} {
+        allow list, get: if isOwner(uid);
+        allow create: if isOwner(uid) && isValidTransaction(incoming());
+        allow update: if isOwner(uid) && isValidTransaction(incoming());
+        allow delete: if isOwner(uid);
+      }
+
+      match /budgets/{categoryId} {
+        allow list, get: if isOwner(uid);
+        allow create: if isOwner(uid) && isValidBudget(incoming());
+        allow update: if isOwner(uid) && isValidBudget(incoming());
+        allow delete: if isOwner(uid);
+      }
+
+      match /suggestions/{suggestionId} {
+        allow list, get: if isOwner(uid);
+        allow create: if isOwner(uid) && isValidSuggestion(incoming());
+        allow update, delete: if false;
+      }
+    }
+  }
+}

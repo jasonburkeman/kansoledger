@@ -1,0 +1,6 @@
+{
+  "name": "Kanso Ledger",
+  "description": "An interactive, beautiful financial dashboard that transforms your spreadsheets into actionable insights. Features automatic categorization, trend analysis, and a Rocket Money-inspired interface.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
