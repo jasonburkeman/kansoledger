@@ -1,0 +1,19 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+
+# Redirect all API requests to our serverless Express functions
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+
+# Handle React single-page app (SPA) routing redirects (prevents 404s on page refresh)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+

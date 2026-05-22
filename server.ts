@@ -60,8 +60,10 @@ async function startServer() {
     httpOptions: { headers: { 'User-Agent': 'aistudio-build' } }
   });
 
+  const apiRouter = express.Router();
+
   // API Check: Plaid Status
-  app.get("/api/plaid/status", (req, res) => {
+  apiRouter.get("/plaid/status", (req, res) => {
     const clientId = (process.env.PLAID_CLIENT_ID || "").trim();
     const secret = (process.env.PLAID_SECRET || "").trim();
     let env = (process.env.PLAID_ENV || 'sandbox').trim().toLowerCase();
@@ -79,7 +81,8 @@ async function startServer() {
         clientIdHint: clientId ? `${clientId.slice(0, 4)}...${clientId.slice(-4)}` : null,
         secretLength: secret.length,
         secretHint: secret ? `${secret.slice(0, 2)}...` : null,
-        envInternal: env
+        envInternal: env,
+        detectedKeys: Object.keys(process.env).filter(k => k.startsWith('PLAID_') || k.includes('GEMINI'))
       }
     };
     
@@ -96,7 +99,7 @@ async function startServer() {
   });
 
   // Create Plaid Link Token
-  app.post("/api/plaid/create_link_token", async (req, res) => {
+  apiRouter.post("/plaid/create_link_token", async (req, res) => {
     try {
       const client = getPlaidClient();
       
@@ -110,7 +113,7 @@ async function startServer() {
 
       const response = await client.linkTokenCreate({
         user: { client_user_id: 'user-id' },
-        client_name: 'ZenBudget',
+        client_name: 'Kanso Ledger',
         products: ['transactions' as any],
         country_codes: ['US' as any],
         language: 'en',
@@ -129,7 +132,7 @@ async function startServer() {
   });
 
   // Exchange Public Token for Access Token
-  app.post("/api/plaid/exchange_public_token", async (req, res) => {
+  apiRouter.post("/plaid/exchange_public_token", async (req, res) => {
     try {
       const client = getPlaidClient();
       const { public_token } = req.body;
@@ -144,7 +147,7 @@ async function startServer() {
   });
 
   // Get Transactions
-  app.post("/api/plaid/transactions", async (req, res) => {
+  apiRouter.post("/plaid/transactions", async (req, res) => {
     try {
       const client = getPlaidClient();
       const { access_token } = req.body;
@@ -159,7 +162,7 @@ async function startServer() {
   });
 
   // API endpoint for financial insights
-  app.post("/api/insights", async (req, res) => {
+  apiRouter.post("/insights", async (req, res) => {
     try {
       const { budgetData, query } = req.body;
 
@@ -182,6 +185,10 @@ async function startServer() {
       res.status(500).json({ error: "Failed to generate insights" });
     }
   });
+
+  // Mount router under both prefixes to handle dev and Netlify routing seamlessly
+  app.use("/api", apiRouter);
+  app.use("/.netlify/functions/api", apiRouter);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

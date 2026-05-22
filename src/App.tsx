@@ -24,7 +24,8 @@ import {
   MessageSquare,
   Sparkle,
   Menu,
-  X
+  X,
+  RefreshCw
 } from "lucide-react";
 import { Transaction, BudgetSummary, BudgetCategory } from "./types";
 import { FileUpload } from "./components/FileUpload";
@@ -98,12 +99,14 @@ export default function App() {
     hasClientId: boolean, 
     hasSecret: boolean, 
     env: string,
-    warning?: string
+    warning?: string,
+    apiError?: boolean
   }>({
     configured: false,
     hasClientId: false,
     hasSecret: false,
-    env: 'sandbox'
+    env: 'sandbox',
+    apiError: false
   });
 
   const [loadingStatus, setLoadingStatus] = useState(false);
@@ -224,8 +227,24 @@ export default function App() {
   const checkPlaidStatus = useCallback(() => {
     setLoadingStatus(true);
     fetch("/api/plaid/status")
-      .then(res => res.json())
-      .then(data => setPlaidStatus(data))
+      .then(async (res) => {
+        const contentType = res.headers.get("content-type");
+        if (!res.ok || !contentType || !contentType.includes("application/json")) {
+          throw new Error("Backend serverless endpoint did not return JSON");
+        }
+        return res.json();
+      })
+      .then(data => setPlaidStatus({ ...data, apiError: false }))
+      .catch(err => {
+        console.warn("Failed to retrieve Plaid API Status. Netlify functions might not be running: ", err);
+        setPlaidStatus(prev => ({
+          ...prev,
+          configured: false,
+          hasClientId: false,
+          hasSecret: false,
+          apiError: true
+        }));
+      })
       .finally(() => setLoadingStatus(false));
   }, []);
 
@@ -417,8 +436,12 @@ export default function App() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-[#F8F9FA] flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-slate-800" />
+      <div className="min-h-screen bg-[#F5F5F0] flex flex-col items-center justify-center gap-4">
+        <div className="w-14 h-14 bg-gradient-to-tr from-emerald-600 to-teal-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-100 text-white font-semibold transform rotate-3 animate-bounce">
+          <Sparkles className="w-7 h-7 text-white animate-pulse" />
+        </div>
+        <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mt-2" />
+        <p className="text-slate-400 text-xs font-mono font-medium tracking-wider uppercase">Loading Kanso Ledger...</p>
       </div>
     );
   }
@@ -426,42 +449,74 @@ export default function App() {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#F5F5F0] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full rounded-3xl border-none shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <div className="bg-gradient-to-tr from-indigo-600 to-indigo-800 p-10 text-white text-center relative overflow-hidden">
+        <Card className="max-w-md w-full rounded-3xl border border-slate-150/50 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700 bg-white">
+          <div className="bg-gradient-to-tr from-emerald-600 to-teal-500 p-10 text-white text-center relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full transform translate-x-10 -translate-y-10"></div>
-            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3">
-              <Sparkles className="w-9 h-9 text-indigo-200 animate-pulse" />
+            <div className="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mx-auto mb-6 transform rotate-3 shadow-inner">
+              <Sparkles className="w-9 h-9 text-emerald-100 animate-pulse" />
             </div>
-            <h1 className="text-3xl font-sans font-black tracking-tight mb-2">Kanso Ledger</h1>
-            <p className="text-white/80 italic text-sm font-medium">Organize your financial habits and cashflow limits with serene clarity.</p>
-          </div>
-          <CardContent className="p-10 space-y-6">
-            <div className="space-y-4">
-              <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                  <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                </div>
-                <p className="text-sm text-slate-600">Your statements are stored inside your private Firestore vaults.</p>
-              </div>
-              <div className="flex gap-4 items-start">
-                <div className="w-8 h-8 rounded-full bg-indigo-50 flex items-center justify-center flex-shrink-0">
-                  <TrendingUp className="w-4 h-4 text-indigo-600" />
-                </div>
-                <p className="text-sm text-slate-600">Sync checking accounts, calculate monthly targets, and review trends.</p>
-              </div>
-            </div>
-            
-            <Button 
-              onClick={signInWithGoogle}
-              className="w-full py-7 rounded-2xl bg-slate-900 hover:bg-black text-white font-bold text-lg shadow-xl shadow-slate-200 flex items-center justify-center gap-2"
-            >
-              Sign In with Google
-              <ChevronRight className="w-5 h-5" />
-            </Button>
-            
-            <p className="text-[10px] text-center text-slate-400 uppercase tracking-widest font-bold">
-              Protected by Firebase Auth
+            <h1 className="text-3.5xl font-sans font-black tracking-tight mb-2 flex items-center justify-center gap-1">
+              Kanso <span className="text-emerald-200">Ledger</span>
+            </h1>
+            <p className="text-white/90 italic text-sm font-medium leading-relaxed">
+              Organize your financial habits and cashflow limits with serene clarity.
             </p>
+          </div>
+          <CardContent className="p-10 space-y-8">
+            <div className="space-y-5">
+              <div className="flex gap-4 items-start">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 shadow-sm border border-emerald-100/30">
+                  <ShieldCheck className="w-4.5 h-4.5 text-emerald-600" />
+                </div>
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-bold font-sans text-slate-800 uppercase tracking-wider">Private Cloud Vault</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">Your data is stored securely inside private, isolated database containers.</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-4 items-start">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center flex-shrink-0 shadow-sm border border-emerald-100/30">
+                  <TrendingUp className="w-4.5 h-4.5 text-emerald-600" />
+                </div>
+                <div className="space-y-0.5">
+                  <h4 className="text-xs font-bold font-sans text-slate-800 uppercase tracking-wider">Automatic Tracking</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed">Sync checking accounts, calculate monthly limits, and predict trends in real time.</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-4 pt-2">
+              <Button 
+                onClick={signInWithGoogle}
+                className="w-full py-7 rounded-2xl bg-slate-900 hover:bg-emerald-600 text-white font-bold text-base shadow-xl shadow-slate-200/50 hover:shadow-emerald-200/40 flex items-center justify-center gap-3 transition-all duration-300 active:scale-[0.98]"
+              >
+                <div className="bg-white p-1 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24">
+                    <path
+                      fill="#4285F4"
+                      d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    />
+                    <path
+                      fill="#34A853"
+                      d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                    />
+                    <path
+                      fill="#FBBC05"
+                      d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                    />
+                    <path
+                      fill="#EA4335"
+                      d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                    />
+                  </svg>
+                </div>
+                <span>Sign In with Google</span>
+              </Button>
+              
+              <p className="text-[10px] text-center text-slate-400 uppercase tracking-widest font-black font-mono">
+                Secure &middot; Verified by Firebase Auth
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -814,55 +869,86 @@ export default function App() {
               />
               <DialogContent className="sm:max-w-md rounded-3xl border-none shadow-2xl p-8 bg-white">
                 <DialogHeader>
-                  <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-4">
+                  <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-4 border border-emerald-100/30">
                     <Landmark className="w-6 h-6" />
                   </div>
                   <DialogTitle className="font-serif text-3xl mb-2 text-slate-900 font-bold">Connect your bank</DialogTitle>
-                  <DialogDescription className="text-slate-500 text-base leading-relaxed">
-                    Automate your tracking by securely linking your accounts. We use Plaid to synchronize your data.
+                  <DialogDescription className="text-slate-500 text-sm leading-relaxed">
+                    Automate your tracking by securely linking your accounts. Kanso Ledger uses Plaid to safely sync your transactions of choice.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-6 pt-4">
-                  {!plaidStatus.configured ? (
-                    <div className="p-5 bg-orange-50/50 border border-orange-100 rounded-2xl flex gap-4 items-start">
-                      <div className="p-2 bg-white rounded-lg shadow-sm">
-                        <Settings className="w-5 h-5 text-orange-500" />
+                  {plaidStatus.apiError ? (
+                    <div className="p-5 bg-rose-50 border border-rose-100/80 rounded-2xl flex gap-4 items-start animate-in fade-in zoom-in-95 duration-200">
+                      <div className="p-2 bg-white rounded-lg shadow-sm border border-rose-200/20">
+                        <AlertCircle className="w-5 h-5 text-rose-500 animate-pulse" />
                       </div>
                       <div className="text-sm text-slate-800 leading-relaxed">
-                        <p className="font-bold mb-1 col-span-2">Plaid setup required</p>
-                        <p className="text-slate-600 mb-3 text-xs">
-                          {!plaidStatus.hasClientId && <span>Missing <b>PLAID_CLIENT_ID</b>. </span>}
-                          {!plaidStatus.hasSecret && <span>Missing <b>PLAID_SECRET</b>. </span>}
-                          Please configure these credentials inside the <b>Secrets</b> menu.
+                        <p className="font-bold mb-1 text-rose-950">Backend API is unreachable</p>
+                        <p className="text-slate-600 mb-3 text-xs leading-relaxed">
+                          Your live site front-end could not contact the serverless backend.
+                          <span className="block mt-2 font-medium">
+                            ⚠️ This usually happens if you deployed via <b>Netlify Drop (drag-and-drop)</b>. Netlify Drop only deploys static files and does not automatically build or compile our Serverless Backend.
+                          </span>
+                          <span className="block mt-2 font-semibold text-emerald-800">
+                            💡 Solution: To get your full backend active, simply connect your GitHub repository directly to Netlify! Netlify will then build the full Express App and Serverless API automatically.
+                          </span>
                         </p>
                         <Button 
                           variant="outline" 
                           size="sm" 
-                          className="h-8 text-xs rounded-lg border-orange-200 hover:bg-white font-bold"
+                          className="h-9 text-xs rounded-xl border-rose-200 bg-white hover:bg-rose-50 font-bold text-rose-700 shadow-none transition-all"
                           onClick={checkPlaidStatus}
                           disabled={loadingStatus}
                         >
-                          {loadingStatus ? <Loader2 className="w-3 h-3 animate-spin mr-2" /> : <TrendingUp className="w-3 h-3 mr-2" />}
-                          Check Again
+                          {loadingStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <RefreshCw className="w-3.5 h-3.5 mr-2" />}
+                          Retry Connection
+                        </Button>
+                      </div>
+                    </div>
+                  ) : !plaidStatus.configured ? (
+                    <div className="p-5 bg-orange-50/50 border border-orange-100 rounded-2xl flex gap-4 items-start">
+                      <div className="p-2 bg-white rounded-lg shadow-sm border border-orange-200/20">
+                        <Settings className="w-5 h-5 text-orange-500 animate-spin-slow" />
+                      </div>
+                      <div className="text-sm text-slate-800 leading-relaxed">
+                        <p className="font-bold mb-1 text-orange-950">Plaid connection keys required</p>
+                        <p className="text-slate-600 mb-3 text-xs leading-relaxed">
+                          {!plaidStatus.hasClientId && <span className="block mb-1">&bull; Missing <b>PLAID_CLIENT_ID</b></span>}
+                          {!plaidStatus.hasSecret && <span className="block mb-1">&bull; Missing <b>PLAID_SECRET</b></span>}
+                          <span className="block mt-2 text-[11px] text-slate-500 font-medium">
+                            💡 <b>Note:</b> Because this interactive live preview runs inside a secure sandboxed container in Google AI Studio, it cannot read the environment variables declared in Netlify. 
+                            <span className="block mt-1 font-semibold text-emerald-700">Please paste these credentials into the \"Secrets\" menu in Google AI Studio's sidebar / settings panel so the container can sync!</span>
+                          </span>
+                        </p>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          className="h-9 text-xs rounded-xl border-orange-200 bg-white hover:bg-orange-50 font-bold text-orange-700 shadow-none transition-all"
+                          onClick={checkPlaidStatus}
+                          disabled={loadingStatus}
+                        >
+                          {loadingStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-2" /> : <TrendingUp className="w-3.5 h-3.5 mr-2" />}
+                          Check Connection
                         </Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl flex gap-4 items-start">
-                      <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <div className="p-5 bg-emerald-50 border border-emerald-100 rounded-2xl flex gap-4 items-start animate-in fade-in zoom-in-95 duration-300">
+                      <div className="p-2 bg-white rounded-lg shadow-sm border border-emerald-200/20">
                         <ShieldCheck className="w-5 h-5 text-emerald-600" />
                       </div>
-                      <div className="text-sm text-emerald-900 leading-relaxed">
-                        <p className="font-bold mb-1">Plaid Connected ({plaidStatus.env})</p>
-                        <p className="text-emerald-700/80 text-xs">Your API keys are active. You're ready to link your account!</p>
+                      <div className="text-sm text-emerald-950 leading-relaxed">
+                        <p className="font-bold mb-1">Plaid Vault Online ({plaidStatus.env || "sandbox"})</p>
+                        <p className="text-emerald-700/80 text-xs">Your keys are active in the sandbox container! You are ready to link a mock or secure live account.</p>
                       </div>
                     </div>
                   )}
                   
                   <Button 
                     className={cn(
-                      "w-full rounded-2xl py-8 text-lg font-semibold shadow-xl transition-all active:scale-[0.98]",
-                      plaidLinkError ? "bg-rose-500 hover:bg-rose-600 text-white" : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100"
+                      "w-full rounded-2xl py-8 text-base font-bold shadow-xl transition-all duration-300 active:scale-[0.98]",
+                      plaidLinkError ? "bg-rose-600 hover:bg-rose-700 text-white shadow-rose-100" : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100/50 hover:shadow-emerald-200/60"
                     )}
                     disabled={!plaidStatus.configured || !ready || loadingPlaid}
                     onClick={() => open()}
